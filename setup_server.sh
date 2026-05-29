@@ -14,7 +14,7 @@ id -u poker &>/dev/null || useradd -r -s /bin/false poker
 
 echo "=== 3. Клонируем репозиторий ==="
 # Замени URL на свой репозиторий
-git clone https://github.com/YOUR_USER/poker-leakfinder.git "$PROJECT_DIR"
+git clone https://github.com/lehhko/poker-leakfinder.git "$PROJECT_DIR"
 chown -R poker:poker "$PROJECT_DIR"
 
 echo "=== 4. Python venv ==="
