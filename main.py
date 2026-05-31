@@ -2,12 +2,28 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from sqlalchemy import text
 
 load_dotenv()
 
 from database import engine
 import models
 models.Base.metadata.create_all(bind=engine)
+
+# Миграция: добавляем новые колонки если их нет (безопасно при повторном запуске)
+def _migrate():
+    with engine.connect() as conn:
+        for sql in [
+            "ALTER TABLE users ADD COLUMN is_subscribed BOOLEAN DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN analyses_count INTEGER DEFAULT 0",
+        ]:
+            try:
+                conn.execute(text(sql))
+                conn.commit()
+            except Exception:
+                pass  # колонка уже существует
+
+_migrate()
 
 app = FastAPI()
 
@@ -33,6 +49,8 @@ def root():
 
 from leak_analyzer import get_router as get_analyze_router
 from auth import get_router as get_auth_router
+from payment import get_router as get_payment_router
 
 app.include_router(get_analyze_router(), prefix="/api")
 app.include_router(get_auth_router(), prefix="/api/auth")
+app.include_router(get_payment_router(), prefix="/api/payment")

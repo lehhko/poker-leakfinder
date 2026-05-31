@@ -692,6 +692,103 @@ function HistoryView({ token, onSelect, onBack }) {
   );
 }
 
+function PaywallView({ token, onBack }) {
+  const [loading, setLoading] = useState(null);
+  const [error, setError] = useState("");
+
+  const plans = [
+    { id: "monthly",  label: "Месячная подписка", price: "$9 / месяц",  desc: "Безлимитные анализы" },
+    { id: "lifetime", label: "Навсегда",           price: "$29 разово",  desc: "Лучшая цена" },
+  ];
+
+  const pay = async (planId) => {
+    setLoading(planId);
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE}/api/payment/create?plan=${planId}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.detail || "Ошибка"); return; }
+      window.location.href = data.payment_url;
+    } catch {
+      setError("Нет соединения с сервером");
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+      style={{ maxWidth: 480, margin: "0 auto", padding: "0 16px" }}>
+      <div style={{ textAlign: "center", marginBottom: 36 }}>
+        <div style={{ fontSize: 36, marginBottom: 12 }}>
+          <span style={{ color: "#c9a84c" }}>♠</span>
+          <span style={{ color: "#e8dfc8", margin: "0 8px" }}>Leak</span>
+          <span style={{ color: "#c9a84c" }}>finder</span>
+        </div>
+        <div style={{
+          display: "inline-block", padding: "6px 16px",
+          background: "rgba(224,82,82,0.1)", border: "1px solid rgba(224,82,82,0.3)",
+          borderRadius: 20, color: "#e05252", fontSize: 12, marginBottom: 16,
+        }}>
+          Бесплатный анализ использован
+        </div>
+        <p style={{ color: "#8a8070", fontSize: 14, lineHeight: 1.7, margin: 0 }}>
+          Получи безлимитный доступ к AI-анализу leak-ов.
+        </p>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
+        {plans.map(plan => (
+          <motion.div key={plan.id} whileHover={{ scale: 1.01 }}
+            style={{
+              background: "rgba(255,255,255,0.03)",
+              border: plan.id === "lifetime"
+                ? "1px solid rgba(201,168,76,0.35)"
+                : "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 14, padding: "20px 24px",
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+            }}>
+            <div>
+              <div style={{ color: "#e8dfc8", fontWeight: 600, marginBottom: 4 }}>{plan.label}</div>
+              <div style={{ color: "#5a5245", fontSize: 12 }}>{plan.desc}</div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ color: "#c9a84c", fontWeight: 700, fontFamily: "'DM Mono', monospace", marginBottom: 8 }}>
+                {plan.price}
+              </div>
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                onClick={() => pay(plan.id)}
+                disabled={loading !== null}
+                style={{
+                  padding: "8px 18px",
+                  background: "linear-gradient(135deg, #c9a84c, #a8863c)",
+                  border: "none", borderRadius: 8, color: "#1a1610",
+                  fontSize: 13, fontWeight: 700, cursor: loading ? "wait" : "pointer",
+                  fontFamily: "inherit",
+                }}>
+                {loading === plan.id ? "..." : "Оплатить крипто"}
+              </motion.button>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {error && <div style={{ color: "#e05252", fontSize: 12, textAlign: "center", marginBottom: 12 }}>{error}</div>}
+
+      <div style={{ textAlign: "center" }}>
+        <button onClick={onBack} style={{
+          background: "none", border: "none", color: "#4a4540",
+          fontSize: 12, cursor: "pointer", fontFamily: "inherit",
+        }}>← вернуться назад</button>
+      </div>
+    </motion.div>
+  );
+}
+
 function LoadingView() {
   const steps = ["Парсим раздачи...", "Считаем статистику...", "Ищем leak-и...", "Готовим отчёт..."];
   const [step, setStep] = useState(0);
@@ -747,12 +844,15 @@ export default function App() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("hero_name", heroName);
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const res = await fetch(`${API_BASE}/api/analyze`, {
         method: "POST",
         body: formData,
-        headers,
+        headers: { Authorization: `Bearer ${token}` },
       });
+      if (res.status === 402) {
+        setView("paywall");
+        return;
+      }
       if (!res.ok) throw new Error("Ошибка сервера");
       const data = await res.json();
       setResult(data);
@@ -802,6 +902,7 @@ export default function App() {
           {view === "upload"  && <UploadView key="up" onAnalyze={handleAnalyze} />}
           {view === "loading" && <LoadingView key="ld" />}
           {view === "result"  && <ResultView key="rs" result={result} onBack={() => setView("upload")} />}
+          {view === "paywall" && <PaywallView key="pw" token={token} onBack={() => setView("upload")} />}
           {view === "history" && (
             <HistoryView key="hist" token={token}
               onSelect={r => { setResult(r); setView("result"); }}

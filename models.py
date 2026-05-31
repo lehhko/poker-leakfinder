@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from database import Base
+
+FREE_ANALYSES_LIMIT = 1
 
 
 class User(Base):
@@ -11,8 +13,14 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    is_subscribed = Column(Boolean, default=False, nullable=False)
+    analyses_count = Column(Integer, default=0, nullable=False)
 
     analyses = relationship("Analysis", back_populates="user", order_by="Analysis.created_at.desc()")
+
+    @property
+    def can_analyze(self) -> bool:
+        return self.is_subscribed or self.analyses_count < FREE_ANALYSES_LIMIT
 
 
 class Analysis(Base):

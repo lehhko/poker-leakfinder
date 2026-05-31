@@ -81,6 +81,11 @@ def get_router():
 
     @router.get("/me")
     def me(user: User = Depends(require_user)):
-        return {"id": user.id, "email": user.email}
+        return {
+            "id": user.id,
+            "email": user.email,
+            "is_subscribed": user.is_subscribed,
+            "analyses_count": user.analyses_count,
+        }
 
     return router

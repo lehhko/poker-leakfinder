@@ -213,7 +213,7 @@ def get_router():
     from sqlalchemy.orm import Session
     from database import get_db
     from models import Analysis
-    from auth import get_current_user
+    from auth import require_user, get_current_user
     from models import User
 
     router = APIRouter()
@@ -223,8 +223,19 @@ def get_router():
         file: UploadFile = File(...),
         hero_name: str = Form(...),
         db: Session = Depends(get_db),
-        current_user: Optional[User] = Depends(get_current_user),
+        current_user: User = Depends(require_user),
     ):
+        # Freemium: проверяем лимит
+        if not current_user.can_analyze:
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "code": "limit_reached",
+                    "message": "Бесплатный анализ уже использован. Нужна подписка.",
+                    "analyses_count": current_user.analyses_count,
+                }
+            )
+
         with tempfile.NamedTemporaryFile(delete=False, suffix=".txt", mode="wb") as tmp:
             tmp.write(await file.read())
             tmp_path = tmp.name
@@ -237,17 +248,17 @@ def get_router():
             stats = compute_stats(hands)
             analysis = await analyze_leaks(stats)
 
-            if current_user:
-                record = Analysis(
-                    user_id=current_user.id,
-                    hero_name=hero_name,
-                    stats=stats,
-                    analysis=analysis,
-                    hands_parsed=len(hands),
-                )
-                db.add(record)
-                db.commit()
-                db.refresh(record)
+            record = Analysis(
+                user_id=current_user.id,
+                hero_name=hero_name,
+                stats=stats,
+                analysis=analysis,
+                hands_parsed=len(hands),
+            )
+            db.add(record)
+            current_user.analyses_count += 1
+            db.commit()
+            db.refresh(record)
 
             return {
                 "stats": stats,
