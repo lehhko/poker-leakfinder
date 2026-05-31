@@ -10,10 +10,11 @@ from database import get_db
 from models import User
 from auth import require_user
 
-NOWPAYMENTS_API_KEY = os.getenv("NOWPAYMENTS_API_KEY", "")
+NOWPAYMENTS_API_KEY    = os.getenv("NOWPAYMENTS_API_KEY", "")
 NOWPAYMENTS_IPN_SECRET = os.getenv("NOWPAYMENTS_IPN_SECRET", "")
-NOWPAYMENTS_BASE = "https://api.nowpayments.io/v1"
-APP_URL = os.getenv("APP_URL", "http://localhost:5173")
+NOWPAYMENTS_BASE       = "https://api.nowpayments.io/v1"
+APP_URL                = os.getenv("APP_URL", "http://localhost:5173")
+NOWPAYMENTS_WIDGET_IID = os.getenv("NOWPAYMENTS_WIDGET_IID", "")
 
 PLANS = {
     "monthly":  {"amount": 9.0,  "label": "Месячная подписка"},
@@ -99,5 +100,19 @@ def get_router():
             {"id": k, "label": v["label"], "amount_usd": v["amount"]}
             for k, v in PLANS.items()
         ]
+
+    @router.get("/widget-config")
+    def widget_config():
+        return {"iid": NOWPAYMENTS_WIDGET_IID}
+
+    @router.post("/confirm")
+    def confirm_payment(
+        user: User = Depends(require_user),
+        db: Session = Depends(get_db),
+    ):
+        """MVP: пользователь сообщает об оплате вручную — активируем подписку."""
+        user.is_subscribed = True
+        db.commit()
+        return {"status": "ok"}
 
     return router

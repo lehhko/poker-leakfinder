@@ -606,102 +606,127 @@ function HistoryView({ token, onSelect, onBack }) {
 
 // ─── Paywall ───────────────────────────────────────────────────────────────────
 
-function PaywallView({ token, onBack }) {
-  const [loading, setLoading] = useState(null);
-  const [error, setError]     = useState("");
+function PaywallView({ token, onBack, onSubscribed }) {
+  const [iid, setIid]           = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError]       = useState("");
 
-  const plans = [
-    { id: "monthly",  label: "MONTHLY",  price: "$9",  period: "/mo",      desc: "безлимитные анализы",    highlight: false },
-    { id: "lifetime", label: "LIFETIME", price: "$29", period: " once",    desc: "лучшая цена, навсегда",  highlight: true  },
-  ];
+  useEffect(() => {
+    fetch(`${API_BASE}/api/payment/widget-config`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(d => setIid(d.iid || ""))
+      .catch(() => {});
+  }, [token]);
 
-  const pay = async (planId) => {
-    setLoading(planId); setError("");
+  const confirm = async () => {
+    setConfirming(true); setError("");
     try {
-      const res = await fetch(`${API_BASE}/api/payment/create?plan=${planId}`, {
+      const res = await fetch(`${API_BASE}/api/payment/confirm`, {
         method: "POST", headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await res.json();
-      if (!res.ok) { setError(data.detail || "ошибка"); return; }
-      window.location.href = data.payment_url;
+      if (!res.ok) { setError("ошибка подтверждения"); return; }
+      setConfirmed(true);
+      setTimeout(() => onSubscribed?.(), 1500);
     } catch {
       setError("нет соединения с сервером");
     } finally {
-      setLoading(null);
+      setConfirming(false);
     }
   };
 
   return (
-    <motion.div {...FADE} style={{ maxWidth: 500, padding: "0 20px", fontFamily: T.mono }}>
+    <motion.div {...FADE} style={{ maxWidth: 460, padding: "0 20px", fontFamily: T.mono }}>
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: T.red, marginBottom: 4, letterSpacing: "0.04em" }}>
           ACCESS REQUIRED
         </div>
         <div style={{ fontSize: 12, color: T.muted }}>
-          бесплатный анализ использован · выбери план для продолжения
+          бесплатный анализ использован · оплати для продолжения
         </div>
       </div>
 
       <HR my={0} />
 
-      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 12, marginBottom: 16 }}>
-        <thead>
-          <tr style={{ borderBottom: `1px solid ${T.border}` }}>
-            {["ПЛАН","ЦЕНА","",""].map((h, i) => (
-              <th key={i} style={{ textAlign: "left", padding: "5px 10px", fontSize: 10, color: T.dim, fontWeight: 400, letterSpacing: "0.08em" }}>
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {plans.map(plan => (
-            <tr key={plan.id} style={{
-              borderBottom: `1px solid ${T.border}`,
-              background: plan.highlight ? "rgba(88,166,255,0.04)" : "transparent",
-            }}>
-              <td style={{ padding: "10px", fontSize: 13, fontWeight: 700, color: plan.highlight ? T.blue : T.text }}>
-                {plan.label}
-              </td>
-              <td style={{ padding: "10px" }}>
-                <span style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{plan.price}</span>
-                <span style={{ fontSize: 11, color: T.muted }}>{plan.period}</span>
-              </td>
-              <td style={{ padding: "10px", fontSize: 11, color: T.muted }}>{plan.desc}</td>
-              <td style={{ padding: "10px", textAlign: "right" }}>
-                <button
-                  onClick={() => pay(plan.id)}
-                  disabled={loading !== null}
-                  style={{
-                    fontFamily: T.mono, fontSize: 12, fontWeight: 700,
-                    padding: "6px 14px",
-                    background: "transparent",
-                    border: `1px solid ${plan.highlight ? T.blue : T.border2}`,
-                    color: plan.highlight ? T.blue : T.text,
-                    cursor: loading ? "wait" : "pointer", borderRadius: 3,
-                    letterSpacing: "0.04em",
-                  }}>
-                  {loading === plan.id ? "..." : "SELECT"}
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div style={{ marginTop: 12, marginBottom: 4 }}>
+        <div style={{ fontSize: 10, color: T.dim, letterSpacing: "0.08em", marginBottom: 8 }}>
+          ОПЛАТА · USDT / BTC / ETH / TON / и другие
+        </div>
 
-      {error && (
-        <div style={{ fontSize: 12, color: T.red, marginBottom: 12 }}>error: {error}</div>
-      )}
+        {confirmed ? (
+          <div style={{
+            padding: "20px", border: `1px solid ${T.green}`,
+            background: "rgba(63,185,80,0.05)", borderRadius: 3,
+            fontSize: 13, color: T.green, textAlign: "center",
+          }}>
+            ✓ оплата подтверждена · подписка активирована
+          </div>
+        ) : (
+          <>
+            {iid ? (
+              <div style={{ border: `1px solid ${T.border}`, borderRadius: 3, overflow: "hidden" }}>
+                <iframe
+                  src={`https://nowpayments.io/embeds/payment-widget?iid=${iid}`}
+                  width="100%"
+                  height="500"
+                  frameBorder="0"
+                  scrolling="no"
+                  style={{ display: "block", background: T.surface }}
+                  title="NOWPayments"
+                >
+                  загрузка виджета...
+                </iframe>
+              </div>
+            ) : (
+              <div style={{
+                padding: "20px", border: `1px dashed ${T.border2}`,
+                borderRadius: 3, fontSize: 12, color: T.muted, textAlign: "center",
+              }}>
+                виджет оплаты не настроен ·{" "}
+                <span style={{ color: T.dim }}>добавь NOWPAYMENTS_WIDGET_IID в .env</span>
+              </div>
+            )}
 
-      <div style={{ fontSize: 11, color: T.dim, marginBottom: 16 }}>
-        оплата через NOWPayments · криптовалюта (USDT, BTC, ETH, TON)
+            <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${T.border}` }}>
+              <div style={{ fontSize: 11, color: T.muted, marginBottom: 10 }}>
+                после оплаты нажми кнопку ниже чтобы активировать аккаунт
+              </div>
+
+              {error && (
+                <div style={{ fontSize: 12, color: T.red, marginBottom: 8 }}>error: {error}</div>
+              )}
+
+              <button
+                onClick={confirm}
+                disabled={confirming}
+                style={{
+                  fontFamily: T.mono, fontSize: 12, fontWeight: 700,
+                  padding: "8px 18px",
+                  background: "transparent",
+                  border: `1px solid ${T.green}`,
+                  color: T.green,
+                  cursor: confirming ? "wait" : "pointer", borderRadius: 3,
+                  letterSpacing: "0.06em",
+                }}
+                onMouseEnter={e => e.target.style.background = "rgba(63,185,80,0.06)"}
+                onMouseLeave={e => e.target.style.background = "transparent"}
+              >
+                {confirming ? "..." : "✓ Я ОПЛАТИЛ — АКТИВИРОВАТЬ"}
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
-      <button onClick={onBack} style={{
-        background: "none", border: "none",
-        fontFamily: T.mono, fontSize: 12, color: T.muted,
-        cursor: "pointer", letterSpacing: "0.04em",
-      }}>← вернуться назад</button>
+      <div style={{ marginTop: 16 }}>
+        <button onClick={onBack} style={{
+          background: "none", border: "none",
+          fontFamily: T.mono, fontSize: 12, color: T.dim,
+          cursor: "pointer", letterSpacing: "0.04em",
+        }}>← вернуться назад</button>
+      </div>
     </motion.div>
   );
 }
@@ -818,7 +843,7 @@ export default function App() {
           {view === "upload"  && <UploadView  key="up"   onAnalyze={handleAnalyze} />}
           {view === "loading" && <LoadingView key="ld" />}
           {view === "result"  && <ResultView  key="rs"   result={result} onBack={() => setView("upload")} />}
-          {view === "paywall" && <PaywallView key="pw"   token={token} onBack={() => setView("upload")} />}
+          {view === "paywall" && <PaywallView key="pw"   token={token} onBack={() => setView("upload")} onSubscribed={() => setView("upload")} />}
           {view === "history" && (
             <HistoryView key="hist" token={token}
               onSelect={r => { setResult(r); setView("result"); }}
